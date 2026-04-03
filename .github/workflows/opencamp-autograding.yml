@@ -1,0 +1,234 @@
+name: OpenCamp Autograding
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths-ignore:
+      - "README.md"
+      - "docs/**"
+      - "resource/**"
+  pull_request:
+    branches:
+      - main
+      - master
+    paths-ignore:
+      - "README.md"
+      - "docs/**"
+      - "resource/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: opencamp-autograding-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  autograde:
+    name: Build And Grade
+    runs-on: ubuntu-latest
+    outputs:
+      total_exercises: ${{ steps.summary.outputs.total_exercises }}
+      passed_exercises: ${{ steps.summary.outputs.passed_exercises }}
+      failed_exercises: ${{ steps.summary.outputs.failed_exercises }}
+      not_completed_exercises: ${{ steps.summary.outputs.not_completed_exercises }}
+      total_score: ${{ steps.summary.outputs.total_score }}
+      max_score: ${{ steps.summary.outputs.max_score }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Show toolchain versions
+        run: |
+          echo "当前工具链版本:"
+          gcc --version | head -n1
+          make --version | head -n1
+          jq --version
+
+      - name: Build checker
+        run: make c-checker
+
+      - name: Run all exercises
+        run: ./c-checker check-all
+
+      - name: Read grading summary
+        id: summary
+        shell: bash
+        run: |
+          echo "total_exercises=$(jq -r '.test_summary.total_exercises' test_results_summary.json)" >> "$GITHUB_OUTPUT"
+          echo "passed_exercises=$(jq -r '.test_summary.passed_exercises' test_results_summary.json)" >> "$GITHUB_OUTPUT"
+          echo "failed_exercises=$(jq -r '.test_summary.failed_exercises' test_results_summary.json)" >> "$GITHUB_OUTPUT"
+          echo "not_completed_exercises=$(jq -r '.test_summary.not_completed_exercises' test_results_summary.json)" >> "$GITHUB_OUTPUT"
+          echo "total_score=$(jq -r '.test_summary.total_score' test_results_summary.json)" >> "$GITHUB_OUTPUT"
+          echo "max_score=$(jq -r '.test_summary.max_score' test_results_summary.json)" >> "$GITHUB_OUTPUT"
+          jq '.test_summary' test_results_summary.json
+
+      - name: Upload grading summary
+        uses: actions/upload-artifact@v6
+        with:
+          name: test-results-summary
+          path: test_results_summary.json
+
+      - name: Publish job summary
+        shell: bash
+        run: |
+          total_exercises='${{ steps.summary.outputs.total_exercises }}'
+          passed_exercises='${{ steps.summary.outputs.passed_exercises }}'
+          failed_exercises='${{ steps.summary.outputs.failed_exercises }}'
+          not_completed_exercises='${{ steps.summary.outputs.not_completed_exercises }}'
+          total_score='${{ steps.summary.outputs.total_score }}'
+          max_score='${{ steps.summary.outputs.max_score }}'
+
+          {
+            echo "## OpenCamp Autograding Summary"
+            echo
+            echo "- Repository: \`${{ github.repository }}\`"
+            echo "- Actor: \`${{ github.actor }}\`"
+            echo "- Event: \`${{ github.event_name }}\`"
+            echo "- Ref: \`${{ github.ref_name }}\`"
+            echo "- Passed Exercises: ${passed_exercises}/${total_exercises}"
+            echo "- Failed Exercises: ${failed_exercises}"
+            echo "- Not Completed Exercises: ${not_completed_exercises}"
+            echo "- Score: ${total_score}/${max_score}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  quality-gate:
+    name: Quality Gate Summary
+    runs-on: ubuntu-latest
+    needs: autograde
+    if: always()
+    steps:
+      - name: Show score status without failing
+        shell: bash
+        run: |
+          total_exercises='${{ needs.autograde.outputs.total_exercises }}'
+          passed_exercises='${{ needs.autograde.outputs.passed_exercises }}'
+          total_score='${{ needs.autograde.outputs.total_score }}'
+          max_score='${{ needs.autograde.outputs.max_score }}'
+
+          if [ -z "$total_exercises" ] || [ -z "$passed_exercises" ]; then
+            echo "Missing autograding outputs."
+            exit 0
+          fi
+
+          if [ "$passed_exercises" -eq "$total_exercises" ]; then
+            echo "All ${total_exercises} exercises passed. Score ${total_score}/${max_score}."
+            exit 0
+          fi
+
+          echo "Only ${passed_exercises}/${total_exercises} exercises passed. Score ${total_score}/${max_score}."
+          exit 0
+
+  report-opencamp-qemu:
+    name: Report Score To OpenCamp QEMU
+    runs-on: ubuntu-latest
+    needs: autograde
+    if: always() && github.event_name != 'pull_request' && needs.autograde.outputs.total_score != ''
+    outputs:
+      status: ${{ steps.finalize.outputs.status }}
+    steps:
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Check token availability
+        id: qemu-token
+        env:
+          OPENCAMP_TOKEN: ${{ secrets.QEMU_CAMP_2026_C_AUTUMN_TOKEN }}
+          OPENCAMP_API_URL: ${{ secrets.QEMU_CAMP_2026_COURSE_POST_API }}
+          OPENCAMP_COURSE_ID: ${{ secrets.QEMU_CAMP_2026_C_AUTUMN_COURSE_ID }}
+        run: |
+          if [ -z "$OPENCAMP_TOKEN" ] || [ -z "$OPENCAMP_API_URL" ] || [ -z "$OPENCAMP_COURSE_ID" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Mark skipped when reporting secrets are missing
+        if: steps.qemu-token.outputs.enabled != 'true'
+        run: echo "OpenCamp QEMU reporting skipped because QEMU_CAMP_2026_COURSE_POST_API, QEMU_CAMP_2026_C_AUTUMN_TOKEN, or QEMU_CAMP_2026_C_AUTUMN_COURSE_ID is not configured." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Send score to OpenCamp QEMU
+        id: report-qemu
+        if: steps.qemu-token.outputs.enabled == 'true'
+        env:
+          OPENCAMP_API_URL: ${{ secrets.QEMU_CAMP_2026_COURSE_POST_API }}
+          OPENCAMP_TOKEN: ${{ secrets.QEMU_CAMP_2026_C_AUTUMN_TOKEN }}
+          OPENCAMP_COURSE_ID: ${{ secrets.QEMU_CAMP_2026_C_AUTUMN_COURSE_ID }}
+          GITHUB_USER: ${{ github.actor }}
+          TOTAL_SCORE: ${{ needs.autograde.outputs.total_score }}
+          MAX_SCORE: ${{ needs.autograde.outputs.max_score }}
+          SUMMARY: build/summary.json
+        run: |
+          mkdir -p "$(dirname "$SUMMARY")"
+          jq -n \
+            --arg channel "github" \
+            --argjson courseId "$OPENCAMP_COURSE_ID" \
+            --arg ext "{}" \
+            --arg name "$GITHUB_USER" \
+            --argjson score "$TOTAL_SCORE" \
+            --argjson totalScore "$MAX_SCORE" \
+            '{channel: $channel, courseId: $courseId, ext: $ext, name: $name, score: $score, totalScore: $totalScore}' > "$SUMMARY"
+
+          cat "$SUMMARY"
+
+          curl --fail-with-body -X POST "$OPENCAMP_API_URL" \
+            -H "accept: application/json;charset=utf-8" \
+            -H "Content-Type: application/json" \
+            -H "token: $OPENCAMP_TOKEN" \
+            -d @"$SUMMARY" \
+            -v
+
+      - name: Finalize report status
+        id: finalize
+        if: always()
+        shell: bash
+        run: |
+          if [ "${{ steps.qemu-token.outputs.enabled }}" != "true" ]; then
+            echo "status=skipped" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "${{ steps.report-qemu.outcome }}" = "success" ]; then
+            echo "status=reported" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "status=failed" >> "$GITHUB_OUTPUT"
+          exit 0
+
+  report-configuration:
+    name: Configuration Help
+    runs-on: ubuntu-latest
+    needs:
+      - autograde
+      - report-opencamp-qemu
+    if: always() && github.event_name != 'pull_request'
+    steps:
+      - name: Show reporting summary
+        shell: bash
+        run: |
+          qemu_status='${{ needs.report-opencamp-qemu.outputs.status }}'
+          total_score='${{ needs.autograde.outputs.total_score }}'
+          max_score='${{ needs.autograde.outputs.max_score }}'
+          passed_exercises='${{ needs.autograde.outputs.passed_exercises }}'
+          total_exercises='${{ needs.autograde.outputs.total_exercises }}'
+
+          [ -n "$qemu_status" ] || qemu_status="skipped"
+
+          {
+            echo "## OpenCamp Reporting Status"
+            echo
+            echo "- Score: ${total_score}/${max_score}"
+            echo "- Passed Exercises: ${passed_exercises}/${total_exercises}"
+            echo "- OpenCamp QEMU: ${qemu_status}"
+          } >> "$GITHUB_STEP_SUMMARY"
