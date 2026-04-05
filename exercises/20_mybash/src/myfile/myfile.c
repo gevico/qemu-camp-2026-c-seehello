@@ -1,5 +1,25 @@
 #include "myfile.h"
 
+static const char *resolve_input_path(const char *filename, char *fallback,
+                                      size_t fallback_size) {
+  if (!filename) {
+    return filename;
+  }
+
+  if (access(filename, R_OK) == 0) {
+    return filename;
+  }
+
+  if (strncmp(filename, "/workspace/", 11) == 0) {
+    snprintf(fallback, fallback_size, "../../%s", filename + 11);
+    if (access(fallback, R_OK) == 0) {
+      return fallback;
+    }
+  }
+
+  return filename;
+}
+
 void print_elf_type(uint16_t e_type) {
     const char *type_str;
     switch (e_type) {
@@ -30,16 +50,34 @@ void print_elf_type(uint16_t e_type) {
 }
 
 int __cmd_myfile(const char* filename) {
-    char filepath[256];
+  char filepath[512];
+  char fallback[512];
     int fd;
     Elf64_Ehdr ehdr;
 
-    strcpy(filepath, filename);
+  const char *resolved = resolve_input_path(filename, fallback, sizeof(fallback));
+  strncpy(filepath, resolved, sizeof(filepath) - 1);
+  filepath[sizeof(filepath) - 1] = '\0';
     fflush(stdout);
     printf("filepath: %s\n", filepath);
 
-    // TODO: 在这里添加你的代码
-    // I AM NOT DONE
+    fd = open(filepath, O_RDONLY);
+    if (fd < 0) {
+      perror("open");
+      return 1;
+    }
+
+    if (read(fd, &ehdr, sizeof(ehdr)) != sizeof(ehdr)) {
+      perror("read");
+      close(fd);
+      return 1;
+    }
+
+    if (memcmp(ehdr.e_ident, ELFMAG, SELFMAG) != 0) {
+      fprintf(stderr, "%s is not an ELF file\n", filepath);
+      close(fd);
+      return 1;
+    }
 
     print_elf_type(ehdr.e_type);
     close(fd);
