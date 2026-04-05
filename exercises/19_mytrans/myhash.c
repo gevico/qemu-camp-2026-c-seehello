@@ -56,8 +56,41 @@ int hash_table_insert(HashTable *table, const char *key, const char *value) {
   unsigned long hash = hash_function(key) % HASH_TABLE_SIZE;
   HashNode *node = table->buckets[hash];
 
-    // TODO: 在这里添加你的代码
-    // I AM NOT DONE
+  // Key exists: update value in place.
+  while (node) {
+    if (strcmp(node->key, key) == 0) {
+      char *new_value = malloc(strlen(value) + 1);
+      if (!new_value)
+        return 0;
+      strcpy(new_value, value);
+      free(node->value);
+      node->value = new_value;
+      return 1;
+    }
+    node = node->next;
+  }
+
+  HashNode *new_node = malloc(sizeof(HashNode));
+  if (!new_node)
+    return 0;
+
+  new_node->key = malloc(strlen(key) + 1);
+  if (!new_node->key) {
+    free(new_node);
+    return 0;
+  }
+  strcpy(new_node->key, key);
+
+  new_node->value = malloc(strlen(value) + 1);
+  if (!new_node->value) {
+    free(new_node->key);
+    free(new_node);
+    return 0;
+  }
+  strcpy(new_node->value, value);
+
+  new_node->next = table->buckets[hash];
+  table->buckets[hash] = new_node;
 
   return 1;
 }
@@ -70,8 +103,11 @@ const char *hash_table_lookup(HashTable *table, const char *key) {
   unsigned long hash = hash_function(key) % HASH_TABLE_SIZE;
   HashNode *node = table->buckets[hash];
 
-    // TODO: 在这里添加你的代码
-    // I AM NOT DONE
+  while (node) {
+    if (strcmp(node->key, key) == 0)
+      return node->value;
+    node = node->next;
+  }
 
   return NULL; // 未找到
 }

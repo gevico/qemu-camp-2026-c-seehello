@@ -11,11 +11,54 @@
 
 int parse_url(const char* url) {
     int err = 0;
+    int state = 0;
 
-    // TODO: 在这里添加你的代码
-    // I AM NOT DONE
+    if(url == NULL)
+        return -1;
 
-exit:
+    while(*url != '\0')
+    {
+        if(*url == '\?' && state == 0)
+        {
+            state = 1;
+            url++;
+            continue;
+        }
+
+        if(state == 1)
+        {
+            printf("key = ");
+            state = 2;
+        }
+
+        if(state == 2)
+        {
+            if(*url == '=')
+            {
+                url++;
+                printf(", value = ");
+                state = 3;
+                continue;
+            }
+
+            printf("%c", *url);
+        }
+
+        if(state == 3)
+        {
+            if(*url == '&' || *url == '"' || *url == '\0')
+            {
+                state = 1;
+                printf("\n");
+                url++;
+                continue;
+            }
+            printf("%c", *url);
+        }
+
+        url++;
+    }
+
     return err;
 }
 
