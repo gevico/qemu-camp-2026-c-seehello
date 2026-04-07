@@ -8,6 +8,7 @@
 
 static const char *resolve_input_path(const char *filename, char *fallback,
                                       size_t fallback_size) {
+  const char *prefix = "/workspace/";
   if (!filename) {
     return filename;
   }
@@ -18,12 +19,22 @@ static const char *resolve_input_path(const char *filename, char *fallback,
     return filename;
   }
 
-  if (strncmp(filename, "/workspace/", 11) == 0) {
-    snprintf(fallback, fallback_size, "../../%s", filename + 11);
-    fp = fopen(fallback, "r");
-    if (fp) {
-      fclose(fp);
-      return fallback;
+  if (strncmp(filename, prefix, strlen(prefix)) == 0) {
+    const char *suffix = filename + strlen(prefix);
+    const char *patterns[] = {
+        "%s",
+        "../%s",
+        "../../%s",
+        "../../../%s",
+    };
+
+    for (size_t i = 0; i < sizeof(patterns) / sizeof(patterns[0]); i++) {
+      snprintf(fallback, fallback_size, patterns[i], suffix);
+      fp = fopen(fallback, "r");
+      if (fp) {
+        fclose(fp);
+        return fallback;
+      }
     }
   }
 
@@ -32,7 +43,10 @@ static const char *resolve_input_path(const char *filename, char *fallback,
 
 static const char *resolve_dict_path(char *buf, size_t buf_size) {
   const char *candidates[] = {
+      "src/mytrans/dict.txt",
       "../src/mytrans/dict.txt",
+      "../../src/mytrans/dict.txt",
+      "../../../src/mytrans/dict.txt",
   };
 
   for (size_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); i++) {
@@ -62,6 +76,7 @@ void trim(char *str) {
   }
 
   *end = '\0';
+
   if (start != str) {
     memmove(str, start, (size_t)(end - start) + 1);
   }
@@ -93,6 +108,7 @@ int load_dictionary(const char *filename, HashTable *table,
     }
 
     if (line[0] == '#') {
+      // 遇到新单词前，先提交上一条记录
       if (in_entry && current_word[0] != '\0' && current_translation[0] != '\0') {
         if (!hash_table_insert(table, current_word, current_translation)) {
           fclose(file);
@@ -114,6 +130,7 @@ int load_dictionary(const char *filename, HashTable *table,
     if (in_entry && strncmp(line, "Trans:", 6) == 0) {
       char *trans = line + 6;
       trim(trans);
+
       if (current_translation[0] != '\0') {
         strncat(current_translation, "@",
                 sizeof(current_translation) - strlen(current_translation) - 1);
@@ -123,6 +140,7 @@ int load_dictionary(const char *filename, HashTable *table,
     }
   }
 
+  // 提交文件末尾最后一个词条
   if (in_entry && current_word[0] != '\0' && current_translation[0] != '\0') {
     if (!hash_table_insert(table, current_word, current_translation)) {
       fclose(file);

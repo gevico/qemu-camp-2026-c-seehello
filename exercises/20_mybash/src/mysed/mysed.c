@@ -4,78 +4,77 @@
 #include <string.h>
 
 int parse_replace_command(const char* cmd, char** old_str, char** new_str) {
-    // 检查输入参数有效性
-    if (!cmd || !old_str || !new_str) {
+    if (cmd == NULL || old_str == NULL || new_str == NULL) {
         return -1;
     }
-    
-    // 初始化输出参数
-    *old_str = NULL;
-    *new_str = NULL;
-    
+
     if (cmd[0] != 's' || cmd[1] != '/') {
         return -1;
     }
 
-    const char *p = cmd + 2;
-    const char *sep = strchr(p, '/');
-    if (!sep) {
+    const char* old_start = cmd + 2;
+    const char* old_end = strchr(old_start, '/');
+    if (old_end == NULL) {
         return -1;
     }
 
-    size_t old_len = (size_t)(sep - p);
-    *old_str = (char *)malloc(old_len + 1);
-    if (!*old_str) {
+    const char* new_start = old_end + 1;
+    const char* new_end = strchr(new_start, '/');
+    if (new_end == NULL || new_end[1] != '\0') {
         return -1;
     }
-    strncpy(*old_str, p, old_len);
+
+    size_t old_len = (size_t)(old_end - old_start);
+    size_t new_len = (size_t)(new_end - new_start);
+
+    *old_str = (char*)malloc(old_len + 1);
+    *new_str = (char*)malloc(new_len + 1);
+    if (*old_str == NULL || *new_str == NULL) {
+        free(*old_str);
+        free(*new_str);
+        *old_str = NULL;
+        *new_str = NULL;
+        return -1;
+    }
+
+    memcpy(*old_str, old_start, old_len);
     (*old_str)[old_len] = '\0';
-
-    p = sep + 1;
-    sep = strchr(p, '/');
-    if (!sep) {
-        free(*old_str);
-        *old_str = NULL;
-        return -1;
-    }
-
-    size_t new_len = (size_t)(sep - p);
-    *new_str = (char *)malloc(new_len + 1);
-    if (!*new_str) {
-        free(*old_str);
-        *old_str = NULL;
-        return -1;
-    }
-    strncpy(*new_str, p, new_len);
+    memcpy(*new_str, new_start, new_len);
     (*new_str)[new_len] = '\0';
 
     return 0;
 }
 
 void replace_first_occurrence(char* str, const char* old, const char* new) {
-    // 检查输入参数有效性
-    if (!str || !old || !new) {
-        return;
-    }
-    
-    if (old[0] == '\0') {
+    if (str == NULL || old == NULL || new == NULL) {
         return;
     }
 
-    char *pos = strstr(str, old);
-    if (!pos) {
-        return;
-    }
-
-    char buffer[MAX_LINE_LENGTH];
-    size_t prefix_len = (size_t)(pos - str);
     size_t old_len = strlen(old);
+    if (old_len == 0) {
+        return;
+    }
 
-    snprintf(buffer, sizeof(buffer), "%.*s%s%s", (int)prefix_len, str, new,
-             pos + old_len);
+    char* pos = strstr(str, old);
+    if (pos == NULL) {
+        return;
+    }
 
-    strncpy(str, buffer, MAX_LINE_LENGTH - 1);
-    str[MAX_LINE_LENGTH - 1] = '\0';
+    size_t prefix_len = (size_t)(pos - str);
+    size_t new_len = strlen(new);
+    size_t suffix_len = strlen(pos + old_len);
+
+    char* buffer = (char*)malloc(prefix_len + new_len + suffix_len + 1);
+    if (buffer == NULL) {
+        return;
+    }
+
+    memcpy(buffer, str, prefix_len);
+    memcpy(buffer + prefix_len, new, new_len);
+    memcpy(buffer + prefix_len + new_len, pos + old_len, suffix_len + 1);
+
+    strcpy(str, buffer);
+    free(buffer);
 }
 
 int __cmd_mysed(const char* rules, const char* str) {

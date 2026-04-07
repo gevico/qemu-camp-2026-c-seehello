@@ -56,6 +56,7 @@ int hash_table_insert(HashTable *table, const char *key, const char *value) {
   unsigned long hash = hash_function(key) % HASH_TABLE_SIZE;
   HashNode *node = table->buckets[hash];
 
+  // Key exists: update value in place.
   while (node) {
     if (strcmp(node->key, key) == 0) {
       char *new_value = malloc(strlen(value) + 1);
@@ -103,9 +104,8 @@ const char *hash_table_lookup(HashTable *table, const char *key) {
   HashNode *node = table->buckets[hash];
 
   while (node) {
-    if (strcmp(node->key, key) == 0) {
+    if (strcmp(node->key, key) == 0)
       return node->value;
-    }
     node = node->next;
   }
 

@@ -155,10 +155,6 @@ int main(int argc, char *argv[]) {
       const char *cmd_arg1 = (argc_parsed >= 2) ? args[1] : NULL;
       const char *cmd_arg2 = (argc_parsed >= 3) ? args[2] : NULL;
 
-      printf("cmd_name: %s\n", cmd_name);
-      printf("cmd_arg1: %s\n", cmd_arg1);
-      printf("cmd_arg2: %s\n", cmd_arg2);
-
       int found = 0;
       for (Command *cmd = commands; cmd->name != NULL; cmd++) {
         if (strcmp(cmd_name, cmd->name) == 0) {

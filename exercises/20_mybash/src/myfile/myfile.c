@@ -2,6 +2,7 @@
 
 static const char *resolve_input_path(const char *filename, char *fallback,
                                       size_t fallback_size) {
+  const char *prefix = "/workspace/";
   if (!filename) {
     return filename;
   }
@@ -10,10 +11,20 @@ static const char *resolve_input_path(const char *filename, char *fallback,
     return filename;
   }
 
-  if (strncmp(filename, "/workspace/", 11) == 0) {
-    snprintf(fallback, fallback_size, "../../%s", filename + 11);
-    if (access(fallback, R_OK) == 0) {
-      return fallback;
+  if (strncmp(filename, prefix, strlen(prefix)) == 0) {
+    const char *suffix = filename + strlen(prefix);
+    const char *patterns[] = {
+        "%s",
+        "../%s",
+        "../../%s",
+        "../../../%s",
+    };
+
+    for (size_t i = 0; i < sizeof(patterns) / sizeof(patterns[0]); i++) {
+      snprintf(fallback, fallback_size, patterns[i], suffix);
+      if (access(fallback, R_OK) == 0) {
+        return fallback;
+      }
     }
   }
 
