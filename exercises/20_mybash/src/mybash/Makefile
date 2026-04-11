@@ -1,7 +1,7 @@
 # src/mybash/Makefile
 
-CC = gcc
-CFLAGS = -Wall -I../../include
+CC ?= gcc
+CFLAGS ?= -Wall -Werror -std=c11 -pedantic -I../../include
 
 # 可执行文件名
 TARGET := mybash
