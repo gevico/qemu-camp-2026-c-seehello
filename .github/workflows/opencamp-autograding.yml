@@ -58,32 +58,7 @@ jobs:
 
       - name: Run all exercises
         shell: bash
-        run: |
-          mkdir -p build/logs
-          set -o pipefail
-          ./c-checker check-all 2>&1 | tee build/logs/check-all.log
-
-      - name: Show log tail in job summary
-        if: always()
-        shell: bash
-        run: |
-          {
-            echo "## check-all log tail"
-            echo
-            echo "Full log is available in artifact: ci-build-logs"
-            echo
-            echo '```text'
-            tail -n 200 build/logs/check-all.log || true
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload full CI logs
-        if: always()
-        uses: actions/upload-artifact@v6
-        with:
-          name: ci-build-logs
-          path: build/logs
-          if-no-files-found: warn
+        run: ./c-checker check-all
 
       - name: Read grading summary
         id: summary

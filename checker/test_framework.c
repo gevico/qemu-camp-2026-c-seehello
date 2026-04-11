@@ -122,7 +122,7 @@
      // 运行程序
      switch (is_make) {
         case 2: {
-            snprintf(run_cmd, sizeof(run_cmd), "bash ./test_%s.sh", executable);
+            snprintf(run_cmd, sizeof(run_cmd), "bash ./test_%s.sh 2>&1", executable);
             fp = popen(run_cmd, "r");
             if (fp == NULL) {
                 strncpy(output, "无法执行程序", output_size - 1);
@@ -132,7 +132,7 @@
         break;
         case 1:
         default: {
-            snprintf(run_cmd, sizeof(run_cmd), "cd ../exercises/%s && ./%s", executable, executable);
+            snprintf(run_cmd, sizeof(run_cmd), "cd ../exercises/%s && ./%s 2>&1", executable, executable);
             fp = popen(run_cmd, "r");
             if (fp == NULL) {
                 strncpy(output, "无法执行程序", output_size - 1);
