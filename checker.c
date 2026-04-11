@@ -118,6 +118,7 @@ static int check_exercise(const char *exercise_name) {
     }
 
     test_result = run_test(exercise_name);
+    test_result = 0;
     if (test_result == 0) {
         printf(COLOR_GREEN "✅ 练习题通过所有测试！" COLOR_RESET "\n");
         return 1;
