@@ -30,6 +30,33 @@ typedef struct {
     } func;
 } Command;
 
+static char *dup_string(const char *s) {
+  size_t len;
+  char *copy;
+
+  if (s == NULL) {
+    return NULL;
+  }
+
+  len = strlen(s) + 1;
+  copy = (char *)malloc(len);
+  if (copy == NULL) {
+    return NULL;
+  }
+
+  memcpy(copy, s, len);
+  return copy;
+}
+
+static void free_args(char **args, int argc) {
+  int i;
+
+  for (i = 0; i < argc; i++) {
+    free(args[i]);
+    args[i] = NULL;
+  }
+}
+
 // 命令表：手动注册所有支持的外部命令
 Command commands[] = {
     {"myfile", 1, .func.func_1 = __cmd_myfile},   // 需要 1 个参数
@@ -90,7 +117,11 @@ int parse_input(char *input, char **args) {
       } else if (isspace((unsigned char)c) && !in_quotes) {
         if (arg_buf_idx > 0) {
           arg_buf[arg_buf_idx] = '\0';
-          args[i++] = strdup(arg_buf);
+          args[i] = dup_string(arg_buf);
+          if (args[i] == NULL) {
+            break;
+          }
+          i++;
           arg_buf_idx = 0;
           memset(arg_buf, 0, sizeof(arg_buf));
         }
@@ -109,7 +140,10 @@ int parse_input(char *input, char **args) {
   // 处理最后一个参数（循环结束后可能还有未加入的）
   if (arg_buf_idx > 0) {
       arg_buf[arg_buf_idx] = '\0';
-      args[i++] = strdup(arg_buf);
+      args[i] = dup_string(arg_buf);
+      if (args[i] != NULL) {
+        i++;
+      }
   }
 
   args[i] = NULL;  // exec-style NULL结尾
@@ -147,6 +181,7 @@ int main(int argc, char *argv[]) {
 
       // 处理内置命令
       if (is_builtin_command(args)) {
+        free_args(args, argc_parsed);
         continue;
       }
 
@@ -173,6 +208,8 @@ int main(int argc, char *argv[]) {
       if (!found) {
         fprintf(stderr, "mybash: command not found: %s\n", cmd_name);
       }
+
+      free_args(args, argc_parsed);
     }
 
     fclose(file);
@@ -198,6 +235,7 @@ int main(int argc, char *argv[]) {
       }
 
       if (is_builtin_command(args)) {
+        free_args(args, argc);
         continue;
       }
 
@@ -223,6 +261,8 @@ int main(int argc, char *argv[]) {
       if (!found) {
         fprintf(stderr, "mybash: command not found: %s\n", cmd_name);
       }
+
+      free_args(args, argc);
     }
   }
 
