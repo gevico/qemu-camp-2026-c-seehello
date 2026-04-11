@@ -20,22 +20,18 @@ all: mybash
 
 # 通用规则：构建每个子模块（静态库）
 $(SUBDIRS):
-	$(MAKE) -C src/$@ OBJDIR=$(PWD)/obj/$@
+	$(MAKE) -C ./src/$@ OBJDIR=$(PWD)/obj/$@
 
 # 构建 mybash（可执行文件，依赖上面的库）
 mybash: $(SUBDIRS)
-	@echo "[mybash] linking executable"
-	@$(MAKE) -C src/mybash \
-		BINDIR=$(PWD)/bin \
-		OBJDIR=$(PWD)/obj/mybash \
-		OBJROOT=$(PWD)/obj
+	$(MAKE) -C ./src/mybash OBJDIR=$(PWD)/obj/mybash BINDIR=$(PWD)/bin \
+		LINKLIBS="-L$(PWD)/obj/mysed -L$(PWD)/obj/myfile -L$(PWD)/obj/mywc -L$(PWD)/obj/mytrans"
+	cp -f ./bin/mybash ./20_mybash
 
 # 清理所有生成的文件
 clean:
-	@for d in $(SUBDIRS); do \
-		$(MAKE) -C src/$$d clean OBJDIR=$(PWD)/obj/$$d; \
-	done
-	@$(MAKE) -C src/mybash clean BINDIR=$(PWD)/bin OBJDIR=$(PWD)/obj/mybash
-	@rm -rf $(PWD)/obj $(PWD)/bin
+	$(MAKE) -C ./src/mybash clean OBJDIR=$(PWD)/obj/mybash BINDIR=$(PWD)/bin
+	for dir in $(SUBDIRS); do $(MAKE) -C ./src/$$dir clean OBJDIR=$(PWD)/obj/$$dir; done
+	@rm -rf ./bin ./obj ./20_mybash
 
 .PHONY: all $(SUBDIRS) mybash clean

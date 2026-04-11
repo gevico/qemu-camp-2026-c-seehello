@@ -1,7 +1,7 @@
 # src/mybash/Makefile
 
-CC ?= gcc
-CFLAGS ?= -Wall -Werror -std=c11 -pedantic -I../../include
+CC = gcc
+CFLAGS = -Wall -I../../include
 
 # 可执行文件名
 TARGET := mybash
@@ -9,8 +9,7 @@ TARGET := mybash
 BINDIR ?= ./bin
 # 中间文件目录（比如 ./obj/src/mybash/）
 OBJDIR ?= ./obj
-OBJROOT ?= ../../obj
-LINKLIBS ?= -L$(OBJROOT)/mysed -L$(OBJROOT)/mywc -L$(OBJROOT)/mytrans -L$(OBJROOT)/myfile
+LINKLIBS ?= -L../../obj/mysed -L../../obj/mywc -L../../obj/mytrans -L../../obj/myfile
 
 # 源文件
 SRCS := main.c
@@ -22,14 +21,17 @@ TARGET_PATH := $(BINDIR)/$(TARGET)
 
 all: $(TARGET_PATH)
 
-$(TARGET_PATH): $(OBJS)
-	@mkdir -p $(BINDIR)
-	@echo "[link] $@"
-	@$(CC) $(CFLAGS) -o $@ $^ $(LINKLIBS) -lmysed -lmywc -lmytrans -lmyfile
-
-$(OBJDIR)/%.o: %.c
+$(OBJDIR):
 	@mkdir -p $(OBJDIR)
+
+$(BINDIR):
+	@mkdir -p $(BINDIR)
+
+$(OBJDIR)/%.o: %.c | $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
+
+$(TARGET_PATH): $(OBJS) | $(BINDIR)
+	$(CC) $(CFLAGS) -o $@ $^ $(LINKLIBS) -lmysed -lmyfile -lmywc -lmytrans
 
 clean:
 	@rm -rf $(OBJDIR)/*.o $(TARGET_PATH)

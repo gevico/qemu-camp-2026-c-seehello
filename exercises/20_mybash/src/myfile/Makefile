@@ -1,7 +1,7 @@
 # src/myfile/Makefile
 
-CC ?= gcc
-CFLAGS ?= -Wall -Werror -std=c11 -pedantic -I../../include -g -fPIE
+CC = gcc
+CFLAGS = -Wall -I../../include -g -fPIE
 
 # 库名称
 LIBNAME := myfile
@@ -19,13 +19,14 @@ OBJS := $(patsubst %.o,$(OBJDIR)/%.o,$(OBJS))
 
 all: $(LIB_PATH)
 
-$(LIB_PATH): $(OBJS)
+$(OBJDIR):
 	@mkdir -p $(OBJDIR)
-	ar rcs $@ $^
 
-$(OBJDIR)/%.o: %.c
-	@mkdir -p $(OBJDIR)
+$(OBJDIR)/%.o: %.c | $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
+
+$(LIB_PATH): $(OBJS)
+	ar rcs $@ $^
 
 clean:
 	@rm -rf $(OBJDIR)/*.o $(LIB_PATH)

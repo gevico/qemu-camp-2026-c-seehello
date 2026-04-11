@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -29,33 +28,6 @@ typedef struct {
         cmd_func_2_t func_2;
     } func;
 } Command;
-
-static char *dup_string(const char *s) {
-  size_t len;
-  char *copy;
-
-  if (s == NULL) {
-    return NULL;
-  }
-
-  len = strlen(s) + 1;
-  copy = (char *)malloc(len);
-  if (copy == NULL) {
-    return NULL;
-  }
-
-  memcpy(copy, s, len);
-  return copy;
-}
-
-static void free_args(char **args, int argc) {
-  int i;
-
-  for (i = 0; i < argc; i++) {
-    free(args[i]);
-    args[i] = NULL;
-  }
-}
 
 // 命令表：手动注册所有支持的外部命令
 Command commands[] = {
@@ -114,23 +86,19 @@ int parse_input(char *input, char **args) {
 
       if (c == '"') {
         in_quotes = !in_quotes;
-      } else if (isspace((unsigned char)c) && !in_quotes) {
+      } else if ((c == ' ' || c == '\t') && !in_quotes) {
         if (arg_buf_idx > 0) {
           arg_buf[arg_buf_idx] = '\0';
-          args[i] = dup_string(arg_buf);
-          if (args[i] == NULL) {
-            break;
-          }
-          i++;
+          args[i++] = strdup(arg_buf);
           arg_buf_idx = 0;
           memset(arg_buf, 0, sizeof(arg_buf));
         }
       } else {
-        if (arg_start == NULL) {
-          arg_start = buf;
-        }
         if (arg_buf_idx < MAX_INPUT - 1) {
           arg_buf[arg_buf_idx++] = c;
+          if (arg_start == NULL) {
+            arg_start = buf;
+          }
         }
       }
 
@@ -140,14 +108,82 @@ int parse_input(char *input, char **args) {
   // 处理最后一个参数（循环结束后可能还有未加入的）
   if (arg_buf_idx > 0) {
       arg_buf[arg_buf_idx] = '\0';
-      args[i] = dup_string(arg_buf);
-      if (args[i] != NULL) {
-        i++;
-      }
+      args[i++] = strdup(arg_buf);
   }
 
   args[i] = NULL;  // exec-style NULL结尾
   return i;
+}
+
+void free_args(char **args, int argc_parsed) {
+  for (int i = 0; i < argc_parsed; i++) {
+    free(args[i]);
+    args[i] = NULL;
+  }
+}
+
+int execute_custom_command(int argc_parsed, char **args) {
+  const char *cmd_name = args[0];
+  const char *cmd_arg1 = (argc_parsed >= 2) ? args[1] : NULL;
+  const char *cmd_arg2 = (argc_parsed >= 3) ? args[2] : NULL;
+
+  int found = 0;
+  for (Command *cmd = commands; cmd->name != NULL; cmd++) {
+    if (strcmp(cmd_name, cmd->name) == 0) {
+      found = 1;
+      if (cmd->is_arg_required == 0) {
+        cmd->func.func_0();
+      } else if (cmd->is_arg_required == 1) {
+        cmd->func.func_1(cmd_arg1);
+      } else if (cmd->is_arg_required == 2) {
+        cmd->func.func_2(cmd_arg1, cmd_arg2);
+      }
+      break;
+    }
+  }
+
+  if (!found) {
+    fprintf(stderr, "mybash: command not found: %s\n", cmd_name);
+    return 1;
+  }
+
+  return 0;
+}
+
+int execute_line(char *line, char **args) {
+  int argc_parsed = parse_input(line, args);
+  if (argc_parsed == 0) {
+    return 0;
+  }
+
+  if (is_builtin_command(args)) {
+    free_args(args, argc_parsed);
+    return 0;
+  }
+
+  int ret = execute_custom_command(argc_parsed, args);
+  free_args(args, argc_parsed);
+  return ret;
+}
+
+int run_default_demo(char **args) {
+  char line[MAX_INPUT];
+  const char *demo_cmds[] = {
+      "myfile ./20_mybash",
+      "myfile ./obj/myfile/myfile.o",
+      "mysed \"s/linux is free os./unix is free os./\" \"linux is opensource. linux is free os.\"",
+      "mytrans ./src/mytrans/text.txt",
+      "mywc ./src/mytrans/text.txt",
+      NULL,
+  };
+
+  for (int i = 0; demo_cmds[i] != NULL; i++) {
+    strncpy(line, demo_cmds[i], sizeof(line) - 1);
+    line[sizeof(line) - 1] = '\0';
+    execute_line(line, args);
+  }
+
+  return 0;
 }
 
 // ======================
@@ -173,98 +209,12 @@ int main(int argc, char *argv[]) {
       // 去掉末尾换行符
       input[strcspn(input, "\n")] = '\0';
 
-      int argc_parsed = parse_input(input, args);
-
-      if (argc_parsed == 0) {
-        continue;  // 空行
-      }
-
-      // 处理内置命令
-      if (is_builtin_command(args)) {
-        free_args(args, argc_parsed);
-        continue;
-      }
-
-      // 处理自定义命令
-      const char *cmd_name = args[0];
-      const char *cmd_arg1 = (argc_parsed >= 2) ? args[1] : NULL;
-      const char *cmd_arg2 = (argc_parsed >= 3) ? args[2] : NULL;
-
-      int found = 0;
-      for (Command *cmd = commands; cmd->name != NULL; cmd++) {
-        if (strcmp(cmd_name, cmd->name) == 0) {
-          found = 1;
-          if (cmd->is_arg_required == 0) {
-            cmd->func.func_0();
-          } else if (cmd->is_arg_required == 1) {
-            cmd->func.func_1(cmd_arg1);
-          } else if (cmd->is_arg_required == 2) {
-            cmd->func.func_2(cmd_arg1, cmd_arg2);
-          }
-          break;
-        }
-      }
-
-      if (!found) {
-        fprintf(stderr, "mybash: command not found: %s\n", cmd_name);
-      }
-
-      free_args(args, argc_parsed);
+      execute_line(input, args);
     }
 
     fclose(file);
     return 0;
-  } 
-  else {
-    // 🔁 原有的交互式命令行模式
-    while (1) {
-      printf("mybash$ ");
-      fflush(stdout);
-
-      if (fgets(input, sizeof(input), stdin) == NULL) {
-        printf("\n");
-        break;
-      }
-
-      input[strcspn(input, "\n")] = '\0';
-
-      int argc = parse_input(input, args);
-
-      if (argc == 0) {
-        continue;
-      }
-
-      if (is_builtin_command(args)) {
-        free_args(args, argc);
-        continue;
-      }
-
-      const char *cmd_name = args[0];
-      const char *cmd_arg1 = (argc >= 2) ? args[1] : NULL;
-      const char *cmd_arg2 = (argc >= 3) ? args[2] : NULL;
-
-      int found = 0;
-      for (Command *cmd = commands; cmd->name != NULL; cmd++) {
-        if (strcmp(cmd_name, cmd->name) == 0) {
-          found = 1;
-          if (cmd->is_arg_required == 0) {
-            cmd->func.func_0();
-          } else if (cmd->is_arg_required == 1) {
-            cmd->func.func_1(cmd_arg1);
-          } else if (cmd->is_arg_required == 2) {
-            cmd->func.func_2(cmd_arg1, cmd_arg2);
-          }
-          break;
-        }
-      }
-
-      if (!found) {
-        fprintf(stderr, "mybash: command not found: %s\n", cmd_name);
-      }
-
-      free_args(args, argc);
-    }
   }
 
-  return 0;
+  return run_default_demo(args);
 }

@@ -1,41 +1,5 @@
 #include "mywc.h"
 
-static const char *resolve_input_path(const char *filename, char *fallback,
-                                      size_t fallback_size) {
-  const char *prefix = "/workspace/";
-
-  if (!filename) {
-    return filename;
-  }
-
-  FILE *fp = fopen(filename, "r");
-  if (fp) {
-    fclose(fp);
-    return filename;
-  }
-
-  if (strncmp(filename, prefix, strlen(prefix)) == 0) {
-    const char *suffix = filename + strlen(prefix);
-    const char *patterns[] = {
-        "%s",
-        "../%s",
-        "../../%s",
-        "../../../%s",
-    };
-
-    for (size_t i = 0; i < sizeof(patterns) / sizeof(patterns[0]); i++) {
-      snprintf(fallback, fallback_size, patterns[i], suffix);
-      fp = fopen(fallback, "r");
-      if (fp) {
-        fclose(fp);
-        return fallback;
-      }
-    }
-  }
-
-  return filename;
-}
-
 // 创建哈希表
 WordCount **wc_create_hash_table() {
   WordCount **hash_table = calloc(HASH_SIZE, sizeof(WordCount *));
@@ -59,33 +23,27 @@ char to_lower(char c) { return tolower(c); }
 
 // 添加单词到哈希表
 void add_word(WordCount **hash_table, const char *word) {
-  if (hash_table == NULL)
-    return;
-  if (word == NULL || word[0] == '\0')
-    return;
-  
-  unsigned int value = hash(word);
+  unsigned int index = hash(word);
+  WordCount *entry = hash_table[index];
 
-  WordCount *current = hash_table[value];
-  while (current != NULL) {
-    if (strcmp(current->word, word) == 0) {
-      current->count++;
+  while (entry != NULL) {
+    if (strcmp(entry->word, word) == 0) {
+      entry->count++;
       return;
     }
-    current = current->next;
+    entry = entry->next;
   }
 
-  WordCount *new_node = malloc(sizeof(WordCount));
-  if (new_node == NULL) {
-    perror("Error allocating memory");
+  entry = malloc(sizeof(WordCount));
+  if (!entry) {
+    perror("malloc");
     exit(EXIT_FAILURE);
   }
-
-  strncpy(new_node->word, word, MAX_WORD_LEN - 1);
-  new_node->word[MAX_WORD_LEN - 1] = '\0';
-  new_node->count = 1;
-  new_node->next = hash_table[value];
-  hash_table[value] = new_node;
+  strncpy(entry->word, word, MAX_WORD_LEN - 1);
+  entry->word[MAX_WORD_LEN - 1] = '\0';
+  entry->count = 1;
+  entry->next = hash_table[index];
+  hash_table[index] = entry;
 }
 
 // 打印单词统计结果
@@ -93,32 +51,25 @@ void print_word_counts(WordCount **hash_table) {
   printf("Word Count Statistics:\n");
   printf("======================\n");
 
-  if (hash_table == NULL)
-    return;
-
   for (int i = 0; i < HASH_SIZE; i++) {
-    WordCount *current = hash_table[i];
-    while (current != NULL) {
-      printf("%-20s %d\n", current->word, current->count);
-      current = current->next;
+    WordCount *entry = hash_table[i];
+    while (entry != NULL) {
+      printf("%-20s %d\n", entry->word, entry->count);
+      entry = entry->next;
     }
   }
 }
 
 // 释放哈希表内存
 void wc_free_hash_table(WordCount **hash_table) {
-  if (hash_table == NULL)
-    return;
-
   for (int i = 0; i < HASH_SIZE; i++) {
-    WordCount *current = hash_table[i];
-    while (current != NULL) {
-      WordCount *next = current->next;
-      free(current);
-      current = next;
+    WordCount *entry = hash_table[i];
+    while (entry != NULL) {
+      WordCount *temp = entry;
+      entry = entry->next;
+      free(temp);
     }
   }
-
   free(hash_table);
 }
 
@@ -160,9 +111,7 @@ void process_file(const char *filename) {
   wc_free_hash_table(hash_table);
 }
 
-int __cmd_mywc(const char *filename) {
-  char fallback[512];
-  const char *resolved = resolve_input_path(filename, fallback, sizeof(fallback));
-  process_file(resolved);
+int __cmd_mywc(const char* filename) {
+  process_file(filename);
   return 0;
 }

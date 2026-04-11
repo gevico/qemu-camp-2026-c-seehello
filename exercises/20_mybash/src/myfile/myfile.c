@@ -1,36 +1,5 @@
 #include "myfile.h"
 
-static const char *resolve_input_path(const char *filename, char *fallback,
-                                      size_t fallback_size) {
-  const char *prefix = "/workspace/";
-  if (!filename) {
-    return filename;
-  }
-
-  if (access(filename, R_OK) == 0) {
-    return filename;
-  }
-
-  if (strncmp(filename, prefix, strlen(prefix)) == 0) {
-    const char *suffix = filename + strlen(prefix);
-    const char *patterns[] = {
-        "%s",
-        "../%s",
-        "../../%s",
-        "../../../%s",
-    };
-
-    for (size_t i = 0; i < sizeof(patterns) / sizeof(patterns[0]); i++) {
-      snprintf(fallback, fallback_size, patterns[i], suffix);
-      if (access(fallback, R_OK) == 0) {
-        return fallback;
-      }
-    }
-  }
-
-  return filename;
-}
-
 void print_elf_type(uint16_t e_type) {
     const char *type_str;
     switch (e_type) {
@@ -61,14 +30,11 @@ void print_elf_type(uint16_t e_type) {
 }
 
 int __cmd_myfile(const char* filename) {
-  char filepath[512];
-  char fallback[512];
+    char filepath[256];
     int fd;
     Elf64_Ehdr ehdr;
 
-  const char *resolved = resolve_input_path(filename, fallback, sizeof(fallback));
-  strncpy(filepath, resolved, sizeof(filepath) - 1);
-  filepath[sizeof(filepath) - 1] = '\0';
+    strcpy(filepath, filename);
     fflush(stdout);
     printf("filepath: %s\n", filepath);
 
@@ -78,14 +44,14 @@ int __cmd_myfile(const char* filename) {
       return 1;
     }
 
-    if (read(fd, &ehdr, sizeof(ehdr)) != sizeof(ehdr)) {
+    if (read(fd, &ehdr, sizeof(ehdr)) != (ssize_t)sizeof(ehdr)) {
       perror("read");
       close(fd);
       return 1;
     }
 
     if (memcmp(ehdr.e_ident, ELFMAG, SELFMAG) != 0) {
-      fprintf(stderr, "%s is not an ELF file\n", filepath);
+      fprintf(stderr, "Not an ELF file: %s\n", filepath);
       close(fd);
       return 1;
     }

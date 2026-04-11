@@ -56,13 +56,11 @@ int hash_table_insert(HashTable *table, const char *key, const char *value) {
   unsigned long hash = hash_function(key) % HASH_TABLE_SIZE;
   HashNode *node = table->buckets[hash];
 
-  // Key exists: update value in place.
   while (node) {
     if (strcmp(node->key, key) == 0) {
-      char *new_value = malloc(strlen(value) + 1);
+      char *new_value = strdup(value);
       if (!new_value)
         return 0;
-      strcpy(new_value, value);
       free(node->value);
       node->value = new_value;
       return 1;
@@ -74,20 +72,14 @@ int hash_table_insert(HashTable *table, const char *key, const char *value) {
   if (!new_node)
     return 0;
 
-  new_node->key = malloc(strlen(key) + 1);
-  if (!new_node->key) {
-    free(new_node);
-    return 0;
-  }
-  strcpy(new_node->key, key);
-
-  new_node->value = malloc(strlen(value) + 1);
-  if (!new_node->value) {
+  new_node->key = strdup(key);
+  new_node->value = strdup(value);
+  if (!new_node->key || !new_node->value) {
     free(new_node->key);
+    free(new_node->value);
     free(new_node);
     return 0;
   }
-  strcpy(new_node->value, value);
 
   new_node->next = table->buckets[hash];
   table->buckets[hash] = new_node;
