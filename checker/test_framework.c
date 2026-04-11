@@ -109,7 +109,7 @@
     }
     
      
-     char compile_output[4096] = {0};
+     char compile_output[8192] = {0};
      size_t bytes_read = fread(compile_output, 1, sizeof(compile_output) - 1, fp);
      int compile_status = pclose(fp);
      
@@ -133,52 +133,6 @@
         case 1:
         default: {
             snprintf(run_cmd, sizeof(run_cmd), "cd ../exercises/%s && ./%s", executable, executable);
-            fp = popen(run_cmd, "r");
-            if (fp == NULL) {
-                strncpy(output, "无法执行程序", output_size - 1);
-                return -1;
-            }
-        }
-     }
-    
-     
-     char compile_output[8192] = {0};
-     size_t bytes_read = fread(compile_output, 1, sizeof(compile_output) - 1, fp);
-     int compile_status = pclose(fp);
-     
-     // 检查编译是否成功
-     if (compile_status != 0) {
-         snprintf(output, output_size, "编译失败:\n%s", compile_output);
-         return -1;
-     }
-     
-     // 运行程序
-     switch (is_make) {
-        case 2: {
-            snprintf(
-                run_cmd,
-                sizeof(run_cmd),
-                "if [ -f ./test_%s.sh ]; then bash ./test_%s.sh; else bash ./tests/test_%s.sh; fi 2>&1",
-                executable,
-                executable,
-                executable);
-            fp = popen(run_cmd, "r");
-            if (fp == NULL) {
-                strncpy(output, "无法执行程序", output_size - 1);
-                return -1;
-            }
-        }
-        break;
-        case 1:
-        default: {
-            snprintf(
-                run_cmd,
-                sizeof(run_cmd),
-                "if [ -d ../exercises/%s ]; then cd ../exercises/%s; else cd exercises/%s; fi && ./%s 2>&1",
-                executable,
-                executable,
-                executable,
-                executable);
             fp = popen(run_cmd, "r");
             if (fp == NULL) {
                 strncpy(output, "无法执行程序", output_size - 1);
