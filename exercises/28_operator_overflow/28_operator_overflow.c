@@ -7,8 +7,13 @@
 int check_add_overflow_asm(unsigned int a, unsigned int b) {
     unsigned char carry;
     __asm__ volatile(
-        // TODO: 在这里添加你的代码
-        // I AM NOT DONE
+        "mov %1, %%eax\n\t"
+        "mov %2, %%ebx\n\t"
+        "add %%ebx, %%eax\n\t"
+        "setc %0"               // 将进位标志存入carry
+        : "=r" (carry)           // 输出操作数
+        : "r" (a), "r" (b)      // 输入操作数
+        : "eax", "ebx", "cc"    // 被修改的寄存
     );
     return carry;
 }
@@ -16,8 +21,13 @@ int check_add_overflow_asm(unsigned int a, unsigned int b) {
 int check_sub_overflow_asm(unsigned int a, unsigned int b) {
     unsigned char carry;
     __asm__ volatile(
-        // TODO: 在这里添加你的代码
-        // I AM NOT DONE
+        "mov %1, %%eax\n\t"
+        "mov %2, %%ebx\n\t"
+        "sub %%ebx, %%eax\n\t"
+        "setc %0"               // 将进位标志存入carry
+        : "=r" (carry)           // 输出操作数
+        : "r" (a), "r" (b)      // 输入操作数
+        : "eax", "ebx", "cc"    // 被修改的寄存器
     );
     return carry;
 }
@@ -26,8 +36,14 @@ int check_mul_overflow_asm(unsigned int a, unsigned int b) {
     unsigned int high_bits;
     unsigned char overflow;
     __asm__ volatile(
-        // TODO: 在这里添加你的代码
-        // I AM NOT DONE
+        "mov %2, %%eax\n\t"
+        "mov %3, %%ebx\n\t"
+        "mul %%ebx\n\t"          // edx:eax = eax * ebx
+        "mov %%edx, %0\n\t"     // 将高位存入high_bits
+        "setc %1"               // 将进位标志存入overflow
+        : "=r" (high_bits), "=r" (overflow) // 输出操作数
+        : "r" (a), "r" (b)      // 输入操作数
+        : "eax", "ebx", "edx", "cc"    // 被修改的寄存器
     );
     return overflow || (high_bits != 0);
 }
@@ -35,8 +51,20 @@ int check_mul_overflow_asm(unsigned int a, unsigned int b) {
 int check_div_overflow_asm(unsigned int a, unsigned int b) {
     unsigned char is_div_zero;
     __asm__ volatile(
-        // TODO: 在这里添加你的代码
-        // I AM NOT DONE
+        "mov $0, %0\n\t"          // 默认不是除零
+        "mov %1, %%eax\n\t"
+        "mov %2, %%ebx\n\t"
+        "cmp $0, %%ebx\n\t"      // 检查除数是否为0
+        "je .L_div_zero\n\t"
+        "xor %%edx, %%edx\n\t"   // 清空edx，准备除法
+        "div %%ebx\n\t"           // eax / ebx
+        "jmp .L_done\n\t"
+        ".L_div_zero:\n\t"
+        "mov $1, %0\n\t"          // 设置is_div_zero为1
+        ".L_done:\n\t"
+        : "=r" (is_div_zero)     // 输出操作数
+        : "r" (a), "r" (b)      // 输入操作数
+        : "eax", "ebx", "edx", "cc"    // 被修改的寄存器
     );
     return is_div_zero;
 }
