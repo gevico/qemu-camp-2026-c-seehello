@@ -24,10 +24,11 @@ $(SUBDIRS):
 
 # 构建 mybash（可执行文件，依赖上面的库）
 mybash: $(SUBDIRS)
-	$(MAKE) -C src/mybash \
+	@echo "[mybash] linking executable"
+	@$(MAKE) -C src/mybash \
 		BINDIR=$(PWD)/bin \
 		OBJDIR=$(PWD)/obj/mybash \
-		LINKLIBS="-L$(PWD)/obj/mysed -L$(PWD)/obj/mywc -L$(PWD)/obj/mytrans -L$(PWD)/obj/myfile"
+		OBJROOT=$(PWD)/obj
 
 # 清理所有生成的文件
 clean:
